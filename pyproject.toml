@@ -4,4 +4,12 @@ version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.11.0"
-dependencies = []
+dependencies = [
+    "docling==2.71.0",
+    "fastembed==0.7.4",
+    "ipykernel>=7.1.0",
+    "llama-index==0.14.13",
+    "llama-index-embeddings-huggingface==0.6.1",
+    "llama-index-vector-stores-qdrant==0.9.1",
+    "mlx-vlm>=0.3.9",
+]
