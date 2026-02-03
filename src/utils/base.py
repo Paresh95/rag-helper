@@ -1,6 +1,24 @@
 from abc import ABC, abstractmethod
 from typing import List
-from utils.schemas import RetrievedChunk, Document
+from src.utils.schemas import RetrievedChunk, Document
+
+
+class BaseIngester(ABC):
+    @abstractmethod
+    def extract_data(self, raw_data: List[Document]) -> List[Document]:
+        raise NotImplementedError("Must implement extract data method")
+
+    @abstractmethod
+    def process_data(self, extracted_data: List[Document]) -> List[Document]:
+        raise NotImplementedError("Must implement process data method")
+
+    @abstractmethod
+    def chunk_data(self, processed_data: List[Document]) -> List[Document]:
+        raise NotImplementedError("Must implement chunk data method")
+
+    @abstractmethod
+    def ingest_data(self, chunked_data: List[Document]) -> None:
+        raise NotImplementedError("Must implement ingest data method")
 
 
 class BaseRetriever(ABC):
@@ -21,9 +39,3 @@ class BaseReranker(ABC):
         self, query: str, retrieved_chunks: List[RetrievedChunk]
     ) -> List[RetrievedChunk]:
         raise NotImplementedError("Must implement rerank method")
-
-
-class BaseIngester(ABC):
-    @abstractmethod
-    def ingest(self, documents: List[Document]) -> None:
-        raise NotImplementedError("Must implement ingest method")

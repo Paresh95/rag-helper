@@ -1,7 +1,7 @@
 from typing import List
 
-from utils.schemas import RAGResponse
-from utils.schemas import RetrievedChunk
+from src.utils.schemas import RAGResponse
+from src.utils.schemas import RetrievedChunk
 
 
 class VanillaRAG:
