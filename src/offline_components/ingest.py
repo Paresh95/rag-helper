@@ -13,7 +13,7 @@ from src.offline_components.utils.data_processors import parse_docling_json
 from tqdm import tqdm
 from src.offline_components.utils.chunkers import objects_to_chunks
 from src.offline_components.utils.upload_to_vector_store import upload_to_qdrant
-from src.utils.vector_store import get_qdrant_client
+from src.utils.vector_store import qdrant_vector_store, dense_embedding_model
 from llama_index.vector_stores.qdrant import QdrantVectorStore
 from llama_index.embeddings.huggingface import HuggingFaceEmbedding
 
@@ -29,17 +29,15 @@ class Ingester(BaseIngester):
         extracted_path: str,
         processed_path: str,
         chunks_path: str,
-        vector_store_path: str,
-        collection_name: str,
-        embedding_model_name: str,
+        vector_store: QdrantVectorStore,
+        embedding_model: HuggingFaceEmbedding,
     ):
         self.raw_path = Path(raw_path)
         self.extracted_path = Path(extracted_path)
         self.processed_path = Path(processed_path)
         self.chunks_path = Path(chunks_path)
-        self.vector_store_path = vector_store_path
-        self.collection_name = collection_name
-        self.embedding_model_name = embedding_model_name
+        self.vector_store = vector_store
+        self.embedding_model = embedding_model
 
     def extract_data(self, verbose: bool = True) -> List[str]:
         """
@@ -121,13 +119,6 @@ class Ingester(BaseIngester):
         """
         Ingest data into vector store.
         """
-        client = get_qdrant_client(url=self.vector_store_path)
-        embedding_model = HuggingFaceEmbedding(model_name=self.embedding_model_name)
-        vector_store = QdrantVectorStore(
-            client=client,
-            embedding_model=embedding_model,
-            collection_name=self.collection_name,
-        )
 
         files = Path(self.chunks_path).glob("*.json")
         if verbose:
@@ -142,8 +133,8 @@ class Ingester(BaseIngester):
                 continue
             upload_to_qdrant(
                 chunks=data,
-                vector_store=vector_store,
-                embedding_model=embedding_model,
+                vector_store=self.vector_store,
+                embedding_model=self.embedding_model,
             )
         return True
 
@@ -167,17 +158,13 @@ if __name__ == "__main__":
     extracted_path = config["extracted_file_path"]
     processed_path = config["processed_file_path"]
     chunks_path = config["chunks_file_path"]
-    vector_store_path = config["vector_store_path"]
-    collection_name = config["collection_name"]
-    embedding_model_name = config["embedding_model_name"]
 
     ingester = Ingester(
         raw_path=raw_path,
         extracted_path=extracted_path,
         processed_path=processed_path,
         chunks_path=chunks_path,
-        vector_store_path=vector_store_path,
-        collection_name=collection_name,
-        embedding_model_name=embedding_model_name,
+        vector_store=qdrant_vector_store,
+        embedding_model=dense_embedding_model,
     )
     ingester.run()
