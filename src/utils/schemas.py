@@ -1,23 +1,19 @@
-from dataclasses import dataclass
 from typing import List, Dict, Any
+from pydantic import BaseModel, Field
 
 
-@dataclass
-class Document:
-    id: str
+class Chunk(BaseModel):
     text: str
-    metadata: Dict[str, Any]
+    metadata: Dict[str, Any] = Field(default_factory=dict)
 
 
-@dataclass
-class RetrievedChunk:
+class RetrievedChunk(BaseModel):
     text: str
     score: float
-    metadata: Dict[str, Any]
+    metadata: Dict[str, Any] = Field(default_factory=dict)
 
 
-@dataclass
-class RAGResponse:
+class RAGResponse(BaseModel):
     answer: str
     retrieved_chunks: List[RetrievedChunk]
-    metadata: Dict[str, Any]
+    metadata: Dict[str, Any] = Field(default_factory=dict)

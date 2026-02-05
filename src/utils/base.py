@@ -1,23 +1,23 @@
 from abc import ABC, abstractmethod
-from typing import List
-from src.utils.schemas import RetrievedChunk, Document
+from typing import List, Any
+from src.utils.schemas import RetrievedChunk
 
 
 class BaseIngester(ABC):
     @abstractmethod
-    def extract_data(self, raw_data: List[Document]) -> List[Document]:
+    def extract_data(self) -> List[Any]:
         raise NotImplementedError("Must implement extract data method")
 
     @abstractmethod
-    def process_data(self, extracted_data: List[Document]) -> List[Document]:
+    def process_data(self) -> List[Any]:
         raise NotImplementedError("Must implement process data method")
 
     @abstractmethod
-    def chunk_data(self, processed_data: List[Document]) -> List[Document]:
+    def chunk_data(self) -> List[Any]:
         raise NotImplementedError("Must implement chunk data method")
 
     @abstractmethod
-    def ingest_data(self, chunked_data: List[Document]) -> None:
+    def ingest_data(self) -> None:
         raise NotImplementedError("Must implement ingest data method")
 
 
