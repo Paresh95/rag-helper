@@ -1,0 +1,7 @@
+raw_file_path: "data/raw/"
+extracted_file_path: "data/extracted/docling/"
+processed_file_path: "data/processed/docling/"
+chunks_file_path: "data/chunks/docling/"
+vector_store_path: "http://localhost:6333"
+collection_name: "my_collection"
+embedding_model_name: "sentence-transformers/all-MiniLM-L6-v2"

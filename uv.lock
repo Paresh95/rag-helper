@@ -3751,6 +3751,7 @@ dependencies = [
     { name = "llama-index-embeddings-huggingface" },
     { name = "llama-index-vector-stores-qdrant" },
     { name = "mlx-vlm" },
+    { name = "tiktoken" },
 ]
 
 [package.metadata]
@@ -3763,6 +3764,7 @@ requires-dist = [
     { name = "llama-index-embeddings-huggingface", specifier = "==0.6.1" },
     { name = "llama-index-vector-stores-qdrant", specifier = "==0.9.1" },
     { name = "mlx-vlm", specifier = ">=0.3.9" },
+    { name = "tiktoken", specifier = "==0.12.0" },
 ]
 
 [[package]]
