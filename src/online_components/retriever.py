@@ -6,25 +6,29 @@ from llama_index.embeddings.huggingface import HuggingFaceEmbedding
 from llama_index.core import VectorStoreIndex
 
 
-def simple_hybrid_retriever(
-    query: str, similarity_top_k: int, sparse_top_k: int, hybrid_top_k: int
-) -> List[RetrievedChunk]:
-    index = VectorStoreIndex.from_vector_store(
-        vector_store=qdrant_vector_store,
-        embed_model=dense_embedding_model,
-    )
-    base_retriever = index.as_retriever(
-        similarity_top_k=similarity_top_k,
-        sparse_top_k=sparse_top_k,
-        vector_store_query_mode="hybrid",
-        hybrid_top_k=hybrid_top_k,
-    )
-    initial_nodes = base_retriever.retrieve(query)
+class SimpleHybridRetriever(BaseRetriever):
+    def __init__(self, similarity_top_k: int, sparse_top_k: int, hybrid_top_k: int):
+        self.similarity_top_k = similarity_top_k
+        self.sparse_top_k = sparse_top_k
+        self.hybrid_top_k = hybrid_top_k
 
-    for n in initial_nodes:  # Preserve similarity scores
-        n.node.metadata["similarity_score"] = n.score
+    def retrieve(self, query: str) -> List[RetrievedChunk]:
+        index = VectorStoreIndex.from_vector_store(
+            vector_store=qdrant_vector_store,
+            embed_model=dense_embedding_model,
+        )
+        base_retriever = index.as_retriever(
+            similarity_top_k=self.similarity_top_k,
+            sparse_top_k=self.sparse_top_k,
+            vector_store_query_mode="hybrid",
+            hybrid_top_k=self.hybrid_top_k,
+        )
+        nodes = base_retriever.retrieve(query)
 
-    return initial_nodes
+        for n in nodes:  # Preserve similarity scores
+            n.node.metadata["similarity_score"] = n.score
+
+        return nodes
 
 
 # TODO: Add base model for hugging face

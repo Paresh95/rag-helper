@@ -3,12 +3,12 @@ from src.utils.schemas import RetrievedChunk
 from typing import List
 from src.utils.prompt import PromptTemplate
 from litellm import completion
-from src.online_components.retriever import simple_hybrid_retriever
+from src.online_components.retriever import SimpleHybridRetriever
 from src.prompts.v1_prompt import SYSTEM_PROMPT, USER_PROMPT_TEMPLATE
 from src.online_components.reranker import SentenceTransformerReranker
 
 
-def format_context(nodes):
+def format_context(nodes: List[RetrievedChunk]) -> str:
     formatted = []
     for i, node in enumerate(nodes, start=1):
         formatted.append(f"""Source {i}: {node.text}""")
@@ -57,11 +57,14 @@ class Generator(BaseGenerator):
 
 
 if __name__ == "__main__":
+    retriever = SimpleHybridRetriever(
+        similarity_top_k=10, sparse_top_k=10, hybrid_top_k=7
+    )
     retriever_query = (
         "As shown in figure 2, the semantic chunking algorithm works by first splitting"
     )
     generator_query = "What does figure 2 show?"
-    retrieved_nodes = simple_hybrid_retriever(retriever_query, 10, 10, 7)
+    retrieved_nodes = retriever.retrieve(retriever_query)
     reranked_nodes = SentenceTransformerReranker(
         model_name="cross-encoder/ms-marco-MiniLM-L-6-v2", top_n=3
     ).rerank(retriever_query, retrieved_nodes)
