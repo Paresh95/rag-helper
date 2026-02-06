@@ -1,11 +1,12 @@
 from src.utils.base import BaseGenerator
 from src.utils.schemas import RetrievedChunk
-from typing import List
-from src.utils.prompt import PromptTemplate
-from litellm import completion
+from typing import List, AsyncIterator
 from src.online_components.retriever import SimpleHybridRetriever
 from src.prompts.v1_prompt import SYSTEM_PROMPT, USER_PROMPT_TEMPLATE
 from src.online_components.reranker import SentenceTransformerReranker
+import asyncio
+from litellm import completion, acompletion
+from tenacity import retry, stop_after_attempt, wait_exponential
 
 
 def format_context(nodes: List[RetrievedChunk]) -> str:
@@ -34,46 +35,112 @@ def call_llm(
     return response.choices[0].message.content
 
 
-class Generator(BaseGenerator):
-    def __init__(self, model_name: str, prompt_template: PromptTemplate):
-        self.model_name = model_name
-        self.prompt_template = prompt_template
+_LLM_SEMAPHORE = asyncio.Semaphore(10)
 
-    def generate(
+
+@retry(stop=stop_after_attempt(3), wait=wait_exponential(min=1, max=8))
+async def _start_stream(**kwargs):
+    """
+    Retry ONLY the initial request that creates the stream.
+    Do NOT retry once tokens begin flowing.
+    """
+    return await acompletion(stream=True, **kwargs)
+
+
+async def stream_llm(
+    *,
+    model: str,
+    system_prompt: str,
+    user_prompt: str,
+    temperature: float = 0.2,
+    max_tokens: int = 300,
+    timeout: int = 20,
+) -> AsyncIterator[str]:
+    if not user_prompt.strip():
+        raise ValueError("Empty prompt")
+
+    async with _LLM_SEMAPHORE:
+        try:
+            stream = await _start_stream(
+                model=model,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+                temperature=temperature,
+                max_tokens=max_tokens,
+                timeout=timeout,
+            )
+
+            async for chunk in stream:
+                delta = chunk.choices[0].delta.get("content")
+                if delta:
+                    yield delta
+
+        except Exception as e:
+            raise RuntimeError("LLM streaming request failed") from e
+
+
+async def collect_stream(stream: AsyncIterator[str]) -> str:
+    parts = []
+    async for token in stream:
+        parts.append(token)
+    return "".join(parts)
+
+
+class Generator(BaseGenerator):
+    def __init__(self, model_name: str, system_prompt: str, user_prompt_template: str):
+        self.model_name = model_name
+        self.system_prompt = system_prompt
+        self.user_prompt_template = user_prompt_template
+
+    async def stream(
         self,
         question: str,
         retrieved_chunks: List[RetrievedChunk],
-        system_prompt: str = SYSTEM_PROMPT,
-        user_prompt_template: str = USER_PROMPT_TEMPLATE,
-    ) -> str:
+    ) -> AsyncIterator[str]:
         context = format_context(retrieved_chunks)
-
-        user_prompt = user_prompt_template.format(
-            context=context,
-            question=question,
+        user_prompt = self.user_prompt_template.format(
+            context=context, question=question
         )
-        response = call_llm(self.model_name, system_prompt, user_prompt)
-        return response
+
+        return stream_llm(
+            model=self.model_name,
+            system_prompt=self.system_prompt,
+            user_prompt=user_prompt,
+        )
+
+    async def generate(
+        self, question: str, retrieved_chunks: List[RetrievedChunk]
+    ) -> str:
+        return await collect_stream(await self.stream(question, retrieved_chunks))
 
 
-if __name__ == "__main__":
+async def main():
     retriever = SimpleHybridRetriever(
         similarity_top_k=10, sparse_top_k=10, hybrid_top_k=7
     )
+
     retriever_query = (
         "As shown in figure 2, the semantic chunking algorithm works by first splitting"
     )
     generator_query = "What does figure 2 show?"
+
     retrieved_nodes = retriever.retrieve(retriever_query)
+
     reranked_nodes = SentenceTransformerReranker(
-        model_name="cross-encoder/ms-marco-MiniLM-L-6-v2", top_n=3
+        model_name="cross-encoder/ms-marco-MiniLM-L-6-v2",
+        top_n=3,
     ).rerank(retriever_query, retrieved_nodes)
-    for node in reranked_nodes:
-        print(node.score)
-        print(node.node.metadata["similarity_score"])
-        print(node.text)
-        print("-" * 50)
-    answer = Generator(
-        model_name="gpt-4o-mini", prompt_template=USER_PROMPT_TEMPLATE
+
+    answer = await Generator(
+        model_name="gpt-4o-mini",
+        system_prompt=SYSTEM_PROMPT,
+        user_prompt_template=USER_PROMPT_TEMPLATE,
     ).generate(generator_query, reranked_nodes)
+
     print(answer)
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
