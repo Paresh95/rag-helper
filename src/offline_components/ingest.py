@@ -8,11 +8,13 @@ from src.offline_components.utils.data_loaders import (
     save_json_to_path,
     load_json_from_path,
 )
-from src.offline_components.utils.data_extractors import docling_pdf_to_json
+from src.offline_components.utils.data_extractors import DoclingPDFConverter
 from src.offline_components.utils.data_processors import parse_docling_json
 from tqdm import tqdm
 from src.offline_components.utils.chunkers import objects_to_chunks
-from src.offline_components.utils.upload_to_vector_store import upload_to_qdrant
+from src.offline_components.utils.upload_to_vector_store import (
+    upload_to_qdrant_fast,
+)
 from src.utils.vector_store import qdrant_vector_store, dense_embedding_model
 from llama_index.vector_stores.qdrant import QdrantVectorStore
 from llama_index.embeddings.huggingface import HuggingFaceEmbedding
@@ -31,6 +33,7 @@ class Ingester(BaseIngester):
         chunks_path: str,
         vector_store: QdrantVectorStore,
         embedding_model: HuggingFaceEmbedding,
+        converter: DoclingPDFConverter,
     ):
         self.raw_path = Path(raw_path)
         self.extracted_path = Path(extracted_path)
@@ -38,6 +41,7 @@ class Ingester(BaseIngester):
         self.chunks_path = Path(chunks_path)
         self.vector_store = vector_store
         self.embedding_model = embedding_model
+        self.converter = converter
 
     def extract_data(self, verbose: bool = True) -> List[str]:
         """
@@ -51,9 +55,8 @@ class Ingester(BaseIngester):
             file_paths = tqdm(file_paths, desc="Extracting data", unit="file")
         else:
             file_paths = file_paths
-
         for file_path in file_paths:
-            data = docling_pdf_to_json(file_path)
+            data = self.converter.extract_pdf_file(file_path)
             output_path = self.extracted_path / f"{file_path.stem}.json"
             save_json_to_path(data=data, path=output_path)
             output_paths.append(output_path)
@@ -131,7 +134,7 @@ class Ingester(BaseIngester):
             except json.JSONDecodeError as exc:
                 print(f"Skipping invalid JSON file: {file} ({exc})")
                 continue
-            upload_to_qdrant(
+            upload_to_qdrant_fast(
                 chunks=data,
                 vector_store=self.vector_store,
                 embedding_model=self.embedding_model,
@@ -158,6 +161,7 @@ if __name__ == "__main__":
     extracted_path = config["extracted_file_path"]
     processed_path = config["processed_file_path"]
     chunks_path = config["chunks_file_path"]
+    converter = DoclingPDFConverter()
 
     ingester = Ingester(
         raw_path=raw_path,
@@ -166,5 +170,6 @@ if __name__ == "__main__":
         chunks_path=chunks_path,
         vector_store=qdrant_vector_store,
         embedding_model=dense_embedding_model,
+        converter=converter,
     )
     ingester.run()
