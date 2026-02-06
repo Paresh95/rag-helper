@@ -8,9 +8,15 @@ docker run -p 6333:6333 -p 6334:6334 qdrant/qdrant
 
 ### General
 
-- Batch ingest data
 - Remove llama index boilerplate e.g. interact directly with qdrant api
 - Add logging
+- Tidy chunking code
+
+### Optimisation
+
+- For batch extractor could add parallism, multi-threadind/multi-processing
+- For data processing, chunking could add multi-processing
+- Batch upload to qdrant
 
 ### Improve doc processing function
 
