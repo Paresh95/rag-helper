@@ -4,7 +4,7 @@ from src.utils.schemas import RAGResponse
 from src.utils.schemas import RetrievedChunk
 from src.online_components.retriever import SimpleHybridRetriever
 from src.online_components.reranker import SentenceTransformerReranker
-from src.online_components.generator import Generator
+from src.online_components.generator import Generator, ChatMemory
 from src.prompts.v1_prompt import SYSTEM_PROMPT, USER_PROMPT_TEMPLATE
 from llama_index.core.vector_stores import MetadataFilters, ExactMatchFilter
 
@@ -49,7 +49,7 @@ class VanillaRAG:
         )
 
 
-if __name__ == "__main__":
+async def chat():
     filters = MetadataFilters(
         filters=[
             ExactMatchFilter(
@@ -68,19 +68,31 @@ if __name__ == "__main__":
         top_n=3,
     )
 
+    memory = ChatMemory(max_turns=5)
+
     generator = Generator(
         model_name="gpt-4o-mini",
         system_prompt=SYSTEM_PROMPT,
         user_prompt_template=USER_PROMPT_TEMPLATE,
+        memory=memory,
     )
 
-    retriever_query = (
-        "As shown in figure 2, the semantic chunking algorithm works by first splitting"
-    )
-    generator_query = "What does figure 2 show?"
+    rag = VanillaRAG(retriever, reranker, generator)
 
-    rag_pipeline = VanillaRAG(retriever, reranker, generator)
+    print("Type 'exit' to quit.\n")
 
-    response = asyncio.run(rag_pipeline.run(retriever_query, generator_query))
+    while True:
+        query = input("You: ").strip()
+        if query.lower() in {"exit", "quit"}:
+            break
 
-    print(response)
+        response = await rag.run(query, query)
+
+        print("Assistant:", response.answer)
+
+
+if __name__ == "__main__":
+    asyncio.run(chat())
+    # query1 = "What does figure 2 show? It comes from: As shown in figure 2,
+    # the semantic chunking algorithm works by first splitting... "
+    # query2 = "What source is that from?"
