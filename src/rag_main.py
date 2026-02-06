@@ -6,6 +6,7 @@ from src.online_components.retriever import SimpleHybridRetriever
 from src.online_components.reranker import SentenceTransformerReranker
 from src.online_components.generator import Generator
 from src.prompts.v1_prompt import USER_PROMPT_TEMPLATE
+from llama_index.core.vector_stores import MetadataFilters, ExactMatchFilter
 
 
 class VanillaRAG:
@@ -48,8 +49,16 @@ class VanillaRAG:
 
 
 if __name__ == "__main__":
+    filters = MetadataFilters(
+        filters=[
+            ExactMatchFilter(
+                key="file_path",
+                value="data/processed/docling/2507.21110v1.json",
+            ),
+        ]
+    )
     retriever = SimpleHybridRetriever(
-        similarity_top_k=10, sparse_top_k=10, hybrid_top_k=7
+        similarity_top_k=10, sparse_top_k=10, hybrid_top_k=7, filters=filters
     )
     reranker = SentenceTransformerReranker(
         model_name="cross-encoder/ms-marco-MiniLM-L-6-v2", top_n=3

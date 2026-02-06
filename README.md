@@ -31,6 +31,7 @@ docker run -p 6333:6333 -p 6334:6334 qdrant/qdrant
 
 ### 2. Retrieval
 
+- Add metadata extraction (use glinear 2 model to extract - source file, temporal, tags, doc name)
 - Remove llama index boilerplate e.g. interact directly with qdrant api
 
 ### 3. Generator

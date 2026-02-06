@@ -1,31 +1,42 @@
 from src.utils.base import BaseRetriever
 from src.utils.schemas import RetrievedChunk
-from typing import List
+from typing import List, Optional
 from src.utils.vector_store import dense_embedding_model, qdrant_vector_store
 from llama_index.embeddings.huggingface import HuggingFaceEmbedding
 from llama_index.core import VectorStoreIndex
+from llama_index.core.vector_stores import MetadataFilters
 
 
 class SimpleHybridRetriever(BaseRetriever):
-    def __init__(self, similarity_top_k: int, sparse_top_k: int, hybrid_top_k: int):
+    def __init__(
+        self,
+        similarity_top_k: int,
+        sparse_top_k: int,
+        hybrid_top_k: int,
+        filters: Optional[MetadataFilters] = None,
+    ):
         self.similarity_top_k = similarity_top_k
         self.sparse_top_k = sparse_top_k
         self.hybrid_top_k = hybrid_top_k
+        self.filters = filters
 
-    def retrieve(self, query: str) -> List[RetrievedChunk]:
+    def retrieve(self, query: str) -> List["RetrievedChunk"]:
         index = VectorStoreIndex.from_vector_store(
             vector_store=qdrant_vector_store,
             embed_model=dense_embedding_model,
         )
+
         base_retriever = index.as_retriever(
             similarity_top_k=self.similarity_top_k,
             sparse_top_k=self.sparse_top_k,
             vector_store_query_mode="hybrid",
             hybrid_top_k=self.hybrid_top_k,
+            filters=self.filters,
         )
+
         nodes = base_retriever.retrieve(query)
 
-        for n in nodes:  # Preserve similarity scores
+        for n in nodes:
             n.node.metadata["similarity_score"] = n.score
 
         return nodes

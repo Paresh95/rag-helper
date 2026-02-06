@@ -100,12 +100,11 @@ def objects_to_chunks(
     model: str = "gpt-4o-mini",
     max_tokens: int = 300,
     overlap_sentences: int = 0,
-    reset_index_per_object: bool = True,
 ) -> List[Chunk]:
     """
-    Converts your input objects into Chunk objects.
-    - chunk_index increments either per object (default) or globally.
-    - tokens stored is the token count of the produced chunk string.
+    Converts input objects into Chunk objects with a globally increasing chunk_index.
+    - chunk_index is strictly monotonic across ALL objects.
+    - token counts are computed once per chunk for efficiency.
     """
     enc = get_encoder(model)
     out: List[Chunk] = []
@@ -118,6 +117,7 @@ def objects_to_chunks(
             continue
 
         sentences = split_sentences(text)
+
         chunk_strs = pack_sentences_into_chunks(
             sentences=sentences,
             enc=enc,
@@ -125,9 +125,7 @@ def objects_to_chunks(
             overlap_sentences=overlap_sentences,
         )
 
-        local_index = 0
         for chunk_text in chunk_strs:
-            idx = local_index if reset_index_per_object else global_index
             tok = count_tokens(enc, chunk_text)
 
             out.append(
@@ -136,7 +134,7 @@ def objects_to_chunks(
                     metadata={
                         "uuid": obj.get("uuid"),
                         "file_path": str(file_path),
-                        "chunk_index": idx,
+                        "chunk_index": global_index,
                         "section_path": obj.get("section_path"),
                         "section_refs": obj.get("section_refs"),
                         "page_no": obj.get("page_no"),
@@ -145,7 +143,6 @@ def objects_to_chunks(
                 )
             )
 
-            local_index += 1
             global_index += 1
 
     return out
