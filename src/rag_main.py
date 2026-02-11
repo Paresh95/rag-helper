@@ -2,11 +2,21 @@ from typing import List
 import asyncio
 from src.utils.schemas import RAGResponse
 from src.utils.schemas import RetrievedChunk
-from src.online_components.retriever import SimpleHybridRetriever
+from src.online_components.retriever import (
+    DenseRetriever,
+    SparseRetriever,
+    HybridRetriever,
+)
 from src.online_components.reranker import SentenceTransformerReranker
 from src.online_components.generator import Generator, ChatMemory
 from src.prompts.v1_prompt import SYSTEM_PROMPT, USER_PROMPT_TEMPLATE
-from llama_index.core.vector_stores import MetadataFilters, ExactMatchFilter
+from qdrant_client import models as qm
+from src.utils.vector_store import (
+    client as qdrant_client,
+    COLLECTION_NAME,
+    DENSE_VECTOR_NAME,
+    SPARSE_VECTOR_NAME,
+)
 
 
 class VanillaRAG:
@@ -20,7 +30,7 @@ class VanillaRAG:
         self.generator = generator
 
     def retrieve(self, query: str) -> List[RetrievedChunk]:
-        chunks = self.retriever.retrieve(query)
+        chunks = self.retriever.retrieve(query, self.k)
         if self.reranker:
             chunks = self.reranker.rerank(query, chunks)
         return chunks
@@ -50,17 +60,37 @@ class VanillaRAG:
 
 
 async def chat():
-    filters = MetadataFilters(
-        filters=[
-            ExactMatchFilter(
+    filters = qm.Filter(
+        must=[
+            qm.FieldCondition(
                 key="file_path",
-                value="data/processed/docling/2507.21110v1.json",
+                match=qm.MatchValue(value="data/processed/docling/2507.21110v1.json"),
             ),
         ]
     )
 
-    retriever = SimpleHybridRetriever(
-        similarity_top_k=10, sparse_top_k=10, hybrid_top_k=7, filters=filters
+    dense_retriever = DenseRetriever(
+        client=qdrant_client,
+        collection_name=COLLECTION_NAME,
+        vector_name=DENSE_VECTOR_NAME,
+        filters=filters,
+    )
+
+    sparse_retriever = SparseRetriever(
+        client=qdrant_client,
+        collection_name=COLLECTION_NAME,
+        vector_name=SPARSE_VECTOR_NAME,
+        filters=filters,
+    )
+
+    retriever = HybridRetriever(
+        dense_retriever=dense_retriever,
+        sparse_retriever=sparse_retriever,
+        method="weighted",
+        weights=[0.5, 0.5],
+        dense_k=10,
+        sparse_k=10,
+        hybrid_k=5,
     )
 
     reranker = SentenceTransformerReranker(
