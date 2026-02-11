@@ -1,25 +1,40 @@
+# vector_store.py
 from qdrant_client import QdrantClient, AsyncQdrantClient
-from llama_index.embeddings.huggingface import HuggingFaceEmbedding
-from llama_index.core.settings import Settings
-from llama_index.vector_stores.qdrant import QdrantVectorStore
+from qdrant_client import models as qm
 
+from sentence_transformers import SentenceTransformer
+from fastembed import SparseTextEmbedding
 
-dense_embedding_model = HuggingFaceEmbedding(
-    model_name="sentence-transformers/all-MiniLM-L6-v2",
-    normalize=True,  # cosine similarity friendly
-    embed_batch_size=16,  # tune for your hardware
-)
-
-Settings.embed_model = dense_embedding_model
+COLLECTION_NAME = "my_collection2"
+dense_model = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
+dense_dim = (
+    dense_model.get_sentence_embedding_dimension()
+)  # all-MiniLM-L6-v2 is 384 dims
+sparse_model = SparseTextEmbedding(model_name="prithivida/Splade_PP_en_v1")
 
 client = QdrantClient(host="localhost", port=6333)
 aclient = AsyncQdrantClient(host="localhost", port=6333)
 
-qdrant_vector_store = QdrantVectorStore(
-    collection_name="my_collection",
-    client=client,
-    aclient=aclient,
-    enable_hybrid=True,
-    batch_size=20,  # controls sparse batch processing
-    fastembed_sparse_model="prithivida/Splade_PP_en_v1",
-)
+DENSE_VECTOR_NAME = "text-dense"
+SPARSE_VECTOR_NAME = "text-sparse"
+
+
+def ensure_collection(dense_dim: int):
+
+    if client.collection_exists(COLLECTION_NAME):
+        return
+
+    client.create_collection(
+        collection_name=COLLECTION_NAME,
+        vectors_config={
+            DENSE_VECTOR_NAME: qm.VectorParams(
+                size=dense_dim,
+                distance=qm.Distance.COSINE,
+            )
+        },
+        sparse_vectors_config={
+            SPARSE_VECTOR_NAME: qm.SparseVectorParams(
+                index=qm.SparseIndexParams(on_disk=False)
+            )
+        },
+    )

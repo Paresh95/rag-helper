@@ -2,6 +2,13 @@ from typing import List
 import json
 import yaml
 from pathlib import Path
+
+from tqdm import tqdm
+
+from qdrant_client import QdrantClient
+from sentence_transformers import SentenceTransformer
+from fastembed import SparseTextEmbedding
+
 from src.utils.base import BaseIngester
 from src.offline_components.utils.data_loaders import (
     get_files_to_handle,
@@ -10,14 +17,16 @@ from src.offline_components.utils.data_loaders import (
 )
 from src.offline_components.utils.data_extractors import DoclingPDFConverter
 from src.offline_components.utils.data_processors import parse_docling_json
-from tqdm import tqdm
 from src.offline_components.utils.chunkers import objects_to_chunks
-from src.offline_components.utils.upload_to_vector_store import (
-    upload_to_qdrant_fast,
+from src.offline_components.utils.upload_to_vector_store import upload_to_qdrant
+from src.utils.vector_store import (
+    client as qdrant_client,
+    COLLECTION_NAME,
+    dense_model,
+    sparse_model,
+    ensure_collection,
+    dense_dim,
 )
-from src.utils.vector_store import qdrant_vector_store, dense_embedding_model
-from llama_index.vector_stores.qdrant import QdrantVectorStore
-from llama_index.embeddings.huggingface import HuggingFaceEmbedding
 
 
 class Ingester(BaseIngester):
@@ -31,16 +40,22 @@ class Ingester(BaseIngester):
         extracted_path: str,
         processed_path: str,
         chunks_path: str,
-        vector_store: QdrantVectorStore,
-        embedding_model: HuggingFaceEmbedding,
+        client: QdrantClient,
+        collection_name: str,
+        dense_model: SentenceTransformer,
+        sparse_model: SparseTextEmbedding,
         converter: DoclingPDFConverter,
     ):
         self.raw_path = Path(raw_path)
         self.extracted_path = Path(extracted_path)
         self.processed_path = Path(processed_path)
         self.chunks_path = Path(chunks_path)
-        self.vector_store = vector_store
-        self.embedding_model = embedding_model
+
+        self.client = client
+        self.collection_name = collection_name
+        self.dense_model = dense_model
+        self.sparse_model = sparse_model
+
         self.converter = converter
 
     def extract_data(self, verbose: bool = True) -> List[str]:
@@ -118,27 +133,26 @@ class Ingester(BaseIngester):
             output_paths.append(output_path)
         return output_paths
 
-    def ingest_data(self, verbose: bool = True) -> None:
-        """
-        Ingest data into vector store.
-        """
-
+    def ingest_data(self, verbose: bool = True) -> bool:
         files = Path(self.chunks_path).glob("*.json")
-        if verbose:
-            files = tqdm(files, desc="Ingesting data", unit="file")
-        else:
-            files = files
-        for file in files:
+        iterator = tqdm(files, desc="Ingesting data", unit="file") if verbose else files
+
+        for file in iterator:
             try:
                 data = load_json_from_path(file)
             except json.JSONDecodeError as exc:
                 print(f"Skipping invalid JSON file: {file} ({exc})")
                 continue
-            upload_to_qdrant_fast(
+
+            upload_to_qdrant(
                 chunks=data,
-                vector_store=self.vector_store,
-                embedding_model=self.embedding_model,
+                client=self.client,
+                collection_name=self.collection_name,
+                dense_model=self.dense_model,
+                sparse_model=self.sparse_model,
+                batch_size=256,
             )
+
         return True
 
     def run(self) -> None:
@@ -163,13 +177,17 @@ if __name__ == "__main__":
     chunks_path = config["chunks_file_path"]
     converter = DoclingPDFConverter()
 
+    ensure_collection(dense_dim)
+
     ingester = Ingester(
         raw_path=raw_path,
         extracted_path=extracted_path,
         processed_path=processed_path,
         chunks_path=chunks_path,
-        vector_store=qdrant_vector_store,
-        embedding_model=dense_embedding_model,
+        client=qdrant_client,
+        collection_name=COLLECTION_NAME,
+        dense_model=dense_model,
+        sparse_model=sparse_model,
         converter=converter,
     )
     ingester.run()
