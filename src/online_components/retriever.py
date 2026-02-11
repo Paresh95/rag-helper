@@ -42,8 +42,6 @@ class SimpleHybridRetriever(BaseRetriever):
         return nodes
 
 
-# TODO: Add base model for hugging face
-
 # TODO: add custom model for dense retrieval
 class DenseRetriever(BaseRetriever):
     def __init__(self, embedding_model: HuggingFaceEmbedding):
