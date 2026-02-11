@@ -8,15 +8,9 @@ docker run -p 6333:6333 -p 6334:6334 qdrant/qdrant
 
 ### General
 
-- Remove llama index boilerplate e.g. interact directly with qdrant api
 - Add logging
 - Tidy chunking code
-
-### Optimisation
-
-- For batch extractor could add parallism, multi-threadind/multi-processing
-- For data processing, chunking could add multi-processing
-- Batch upload to qdrant
+- Batch & multi-threadind/multi-processing for extraction, processing, uploads to qdrant
 
 ### Improve doc processing function
 
@@ -31,8 +25,8 @@ docker run -p 6333:6333 -p 6334:6334 qdrant/qdrant
 
 ### 2. Retrieval
 
+- Make retriever async - see `async_retriever.py` in archive. Note, don't need async for ingestion as that is a CPU/GPU bound task and not I/O bound.
 - Add metadata extraction (use glinear 2 model to extract - source file, temporal, tags, doc name)
-- Remove llama index boilerplate e.g. interact directly with qdrant api
 
 ### 3. Generator
 
