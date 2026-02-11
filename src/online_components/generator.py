@@ -117,6 +117,20 @@ async def collect_stream(stream: AsyncIterator[str]) -> str:
     return "".join(parts)
 
 
+def validate_answer(answer: str) -> str:
+    # Guardrail 1: ensure fallback phrase if no citation
+    if "[Source" not in answer:
+        return "I don’t know based on the provided information."
+
+    # Guardrail 2: prevent hallucinated claims
+    # (simple heuristic — production uses semantic checking)
+    # for sentence in answer.split("."):
+    #     if sentence.strip() and sentence not in context:
+    #         return "I don’t know based on the provided information."
+
+    return answer
+
+
 class Generator(BaseGenerator):
     def __init__(
         self,
@@ -157,7 +171,8 @@ class Generator(BaseGenerator):
         stream = await self.stream(question, retrieved_chunks)
         answer = await collect_stream(stream)
         self.memory.add_assistant(answer)
-        return answer
+        validated_answer = validate_answer(answer)
+        return validated_answer
 
 
 async def main():
